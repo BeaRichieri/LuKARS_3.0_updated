@@ -32,11 +32,11 @@ def Q_up(
     ra,
     kis,
     Qhy0,
-    Emin,
-    Emax,
+    E_min,
+    E_max,
     alpha,
-    khy,
-    lhy,
+    k_hyd,
+    l_hyd,
     Qsec0,
     ksec,
     Esec,
@@ -88,14 +88,14 @@ def Q_up(
         Qis[i + 1] = ra * kis * E[i + 1]
 
         # Fast flow to the conduit.
-        if E[i + 1] >= Emin and Qhy[i] > 0:
+        if E[i + 1] >= E_min and Qhy[i] > 0:
             Qhy[i + 1] = (
-                ((E[i + 1] - Emin) / (Emax - Emin)) ** alpha
-            ) * (khy / lhy) * ra
-        elif E[i + 1] >= Emax and Qhy[i] <= 0:
+                ((E[i + 1] - E_min) / (E_max - E_min)) ** alpha
+            ) * (k_hyd / l_hyd) * ra
+        elif E[i + 1] >= E_max and Qhy[i] <= 0:
             Qhy[i + 1] = (
-                ((E[i + 1] - Emin) / (Emax - Emin)) ** alpha
-            ) * (khy / lhy) * ra
+                ((E[i + 1] - E_min) / (E_max - E_min)) ** alpha
+            ) * (k_hyd / l_hyd) * ra
         else:
             Qhy[i + 1] = 0
 
@@ -109,12 +109,12 @@ def ki_seuil(k, a, H, Hseuil):
 
 
 @njit()
-def Eth(E, k, S, PAS, Emin):
+def Eth(E, k, S, PAS, E_min):
     """Analytically update a storage state over one integration sub-step."""
     if k != 0:
         Eq = S / k
-        return np.maximum(Eq + (E - Eq) * np.exp(-k * PAS), Emin)
-    return np.maximum(E + PAS * S, Emin)
+        return np.maximum(Eq + (E - Eq) * np.exp(-k * PAS), E_min)
+    return np.maximum(E + PAS * S, E_min)
 
 
 @njit()
@@ -353,11 +353,11 @@ def run_model(
     Qhy0,
     ra,
     kis,
-    Emin,
-    Emax,
+    E_min,
+    E_max,
     alpha,
-    khy,
-    lhy,
+    k_hyd,
+    l_hyd,
     Qsec0,
     ksec,
     Esec,
@@ -400,11 +400,11 @@ def run_model(
             ra[i],
             kis[i],
             Qhy0,
-            Emin[i],
-            Emax[i],
+            E_min[i],
+            E_max[i],
             alpha[i],
-            khy[i],
-            lhy[i],
+            k_hyd[i],
+            l_hyd[i],
             Qsec0,
             ksec[i],
             Esec[i],
@@ -525,7 +525,7 @@ def fromCalibrationToPhysicalParameters(
     The transformation consists of:
 
     - log-scaled parameters are exponentiated;
-    - ``e_max`` is reconstructed as ``e_min + diff_e``;
+    - ``E_max`` is reconstructed as ``E_min + diff_E``;
     - seven parameters are reconstructed for each hydrotope; and
     - ``kMS`` is reconstructed from the final sample column.
 
@@ -554,10 +554,10 @@ def fromCalibrationToPhysicalParameters(
 
     for i, h in enumerate(hydrotope_ids):
         base_idx = i * 7
-        physical_params[f"k_e_{h}_num"] = np.exp(samples[:, base_idx])
-        physical_params[f"e_min_{h}"] = samples[:, base_idx + 1]
-        physical_params[f"e_max_{h}"] = (
-            physical_params[f"e_min_{h}"] + samples[:, base_idx + 2]
+        physical_params[f"k_hyd_{h}"] = np.exp(samples[:, base_idx])
+        physical_params[f"E_min_{h}"] = samples[:, base_idx + 1]
+        physical_params[f"E_max_{h}"] = (
+            physical_params[f"E_min_{h}"] + samples[:, base_idx + 2]
         )
         physical_params[f"alpha_{h}"] = samples[:, base_idx + 3]
         physical_params[f"k_is_{h}"] = np.exp(samples[:, base_idx + 4])
@@ -582,13 +582,13 @@ def fromPhysicalToCalibrationParameters(
             chain.from_iterable(
                 [
                     [
-                        np.log(physical_samples[f"k_e_{h}_num"])[
+                        np.log(physical_samples[f"k_hyd_{h}"])[
                             :, np.newaxis
                         ],
-                        physical_samples[f"e_min_{h}"][:, np.newaxis],
+                        physical_samples[f"E_min_{h}"][:, np.newaxis],
                         (
-                            physical_samples[f"e_max_{h}"]
-                            - physical_samples[f"e_min_{h}"]
+                            physical_samples[f"E_max_{h}"]
+                            - physical_samples[f"E_min_{h}"]
                         )[:, np.newaxis],
                         physical_samples[f"alpha_{h}"][:, np.newaxis],
                         np.log(physical_samples[f"k_is_{h}"])[
